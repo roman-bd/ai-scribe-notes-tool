@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import { prisma } from '../lib/db';
-import { createNoteSchema, idParamSchema } from '../lib/validation';
+import { createNoteSchema, idParamSchema, audioFileSchema } from '../lib/validation';
 import { upload } from '../middleware/upload';
 import { uploadAudio, getAudioUrl } from '../services/s3';
 import { transcribeAudio, generateSoapNote } from '../services/ai';
@@ -74,6 +74,17 @@ router.post('/', upload.single('audio'), async (req: Request, res: Response) => 
     let transcription = null;
 
     if (file) {
+      const fileValidation = audioFileSchema.safeParse({
+        mimetype: file.mimetype,
+        size: file.size,
+      });
+
+      if (!fileValidation.success) {
+        fs.unlinkSync(file.path);
+        res.status(400).json({ error: fileValidation.error.issues[0].message });
+        return;
+      }
+
       inputType = 'audio';
 
       const fileBuffer = fs.readFileSync(file.path);
